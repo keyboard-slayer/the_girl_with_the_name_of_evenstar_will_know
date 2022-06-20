@@ -1,0 +1,3 @@
+OPEN "hi.txt" "w" r0
+PUSH "Hello, World !" 
+WRITE r0
