@@ -5,13 +5,14 @@ import os
 import sys
 
 _OPCODES = {
+    "INIT":     (0x00, 0),
     "PUSH":     (0x01, 1),
     "POP":      (0x02, 1),
     "PRINT":    (0x03, 0),
     "OPEN":     (0x05, 3),
     "WRITE":    (0x08, 1),
     "READ":     (0x0d, 2),
-    "FSIZE":    (0x15, 1)
+    "FSIZE":    (0x15, 2)
 }
 
 
@@ -33,8 +34,11 @@ def tokenize(inst: str) -> list[str]:
     for token in inst.split():
         if token[0] == '\"' or in_str:
             if token[-1] == '\"':
-                result.append(obfuscate_string(tmp[1:]+token[:-1]))
-                tmp = ""
+                if tmp:
+                    result.append(obfuscate_string(tmp[1:]+token[:-1]))
+                    tmp = ""
+                else:
+                    result.append(obfuscate_string(token[1:-1]))
                 in_str = False
             else:
                 in_str = True
@@ -67,7 +71,7 @@ def assemble(s):
             else:
                 code.append(arg)
     
-    src = f"var Bytecode []uint8 = []uint8{{"
+    src = f"var Bytecode []byte = []byte{{"
     for byte in code:
         src += f"0x{byte:02x}, "
 

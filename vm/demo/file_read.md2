@@ -1,5 +1,6 @@
+PUSH "2"
+INIT
 OPEN "~/.bashrc" "r" r0
-FSIZE r0
-POP r1
+FSIZE r0 r1
 READ r0 r1
 PRINT

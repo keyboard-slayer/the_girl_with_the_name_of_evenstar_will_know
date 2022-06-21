@@ -162,6 +162,11 @@ func (cpu *Cpu) write(r *Reader) {
 	file.Write(data)
 }
 
+func (cpu *Cpu) pop_instr(r *Reader) {
+	dst := 0xff - r.next()
+	cpu.regs[dst] = cpu.pop(r)
+}
+
 var (
 	INIT  byte = 0x00
 	PUSH  byte = 0x01
@@ -193,6 +198,8 @@ func main() {
 			}
 		case PUSH:
 			cpu.push(&r)
+		case POP:
+			cpu.pop_instr(&r)
 		case PRINT:
 			fmt.Println(string(cpu.pop(&r)))
 		case OPEN:
