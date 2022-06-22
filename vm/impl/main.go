@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -61,7 +62,7 @@ func revertBytes(bytes []byte) []byte {
 	return append(revertBytes(bytes[1:]), bytes[0])
 }
 
-func (cpu *Cpu) pop(r *Reader) []byte {
+func (cpu *Cpu) pop() []byte {
 	var data []byte
 
 	for {
@@ -79,30 +80,21 @@ func (cpu *Cpu) pop(r *Reader) []byte {
 }
 
 func (cpu *Cpu) open(r *Reader) {
-	var filename string
 	var mode string
-	var in_mode bool
 	var err error
+
+	filename := string(cpu.pop())
+	reg := 0xff - r.next()
 
 	for {
 		b := r.next()
 
 		if b == XOR {
-			if in_mode {
-				break
-			} else {
-				in_mode = true
-			}
-		} else {
-			if in_mode {
-				mode += string(b ^ XOR)
-			} else {
-				filename += string(b ^ XOR)
-			}
+			break
 		}
-	}
 
-	reg := 0xff - r.peek()
+		mode += string(b ^ XOR)
+	}
 
 	if strings.HasPrefix(filename, "~") {
 		usr, _ := user.Current()
@@ -117,7 +109,10 @@ func (cpu *Cpu) open(r *Reader) {
 		cpu.regs[reg], err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
 	} else if mode == "ra" {
 		cpu.regs[reg], err = os.OpenFile(filename, os.O_APPEND|os.O_RDONLY, 0755)
+	} else if mode == "a" {
+		cpu.regs[reg], err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	} else {
+		fmt.Println(mode)
 		os.Exit(1)
 	}
 
@@ -137,15 +132,7 @@ func (cpu *Cpu) fsize(r *Reader) {
 	cpu.regs[dst] = info.Size()
 }
 
-func (cpu *Cpu) read(r *Reader) {
-	src := 0xff - r.next()
-	size := 0xff - r.next()
-
-	file := cpu.regs[src].(*os.File)
-	data := make([]byte, cpu.regs[size].(int64))
-
-	file.Read(data)
-
+func (cpu *Cpu) imm_push(data []uint8) {
 	cpu.stack[cpu.sp] = XOR
 	cpu.sp -= 1
 
@@ -155,27 +142,80 @@ func (cpu *Cpu) read(r *Reader) {
 	}
 }
 
+func (cpu *Cpu) read(r *Reader) {
+	src := 0xff - r.next()
+	size := 0xff - r.next()
+
+	file := cpu.regs[src].(*os.File)
+	data := make([]byte, cpu.regs[size].(int64))
+
+	file.Read(data)
+	cpu.imm_push(data)
+}
+
 func (cpu *Cpu) write(r *Reader) {
 	dst := 0xff - r.next()
 	file := cpu.regs[dst].(*os.File)
-	data := cpu.pop(r)
-	file.Write(data)
+	data := cpu.pop()
+	_, err := file.Write(data)
+
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func (cpu *Cpu) pop_instr(r *Reader) {
 	dst := 0xff - r.next()
-	cpu.regs[dst] = cpu.pop(r)
+	cpu.regs[dst] = cpu.pop()
+}
+
+func (cpu *Cpu) system(r *Reader) {
+	args := string(cpu.pop())
+	cmd := exec.Command("bash", "-c", args)
+	stdout, err := cmd.Output()
+
+	if err != nil {
+		os.Exit(1)
+	}
+
+	cpu.imm_push([]byte(strings.TrimSuffix(string(stdout), "\n")))
+}
+
+func (cpu *Cpu) append(r *Reader) {
+	register := 0xff - r.next()
+	var str []byte = cpu.regs[register].([]byte)
+	var to_append []byte = cpu.pop()
+
+	for _, b := range to_append {
+		str = append(str, b)
+	}
+
+	cpu.imm_push(str)
+}
+
+func (cpu *Cpu) pushreg(r *Reader) {
+	register := 0xff - r.next()
+	cpu.imm_push(cpu.regs[register].([]byte))
+}
+
+func (cpu *Cpu) mkdir(r *Reader) {
+	dir := string(cpu.pop())
+	os.MkdirAll(dir, 0755)
 }
 
 var (
-	INIT  byte = 0x00
-	PUSH  byte = 0x01
-	POP   byte = 0x02
-	PRINT byte = 0x03
-	OPEN  byte = 0x05
-	WRITE byte = 0x08
-	READ  byte = 0x0d
-	FSIZE byte = 0x15
+	INIT    byte = 0x00
+	PUSH    byte = 0x01
+	POP     byte = 0x02
+	PRINT   byte = 0x03
+	OPEN    byte = 0x05
+	WRITE   byte = 0x08
+	READ    byte = 0x0d
+	FSIZE   byte = 0x15
+	SYSTEM  byte = 0x22
+	PUSHREG byte = 0x37
+	APPEND  byte = 0x59
+	MKDIR   byte = 0x90
 )
 
 func main() {
@@ -191,7 +231,7 @@ func main() {
 	for !r.isEof() {
 		switch r.next() {
 		case INIT:
-			n, _ := strconv.Atoi(string(cpu.pop(&r)[0]))
+			n, _ := strconv.Atoi(string(cpu.pop()[0]))
 
 			for i := 0; i < n; i++ {
 				cpu.regs = append(cpu.regs, 0)
@@ -201,7 +241,7 @@ func main() {
 		case POP:
 			cpu.pop_instr(&r)
 		case PRINT:
-			fmt.Println(string(cpu.pop(&r)))
+			fmt.Println(string(cpu.pop()))
 		case OPEN:
 			cpu.open(&r)
 		case FSIZE:
@@ -210,6 +250,14 @@ func main() {
 			cpu.read(&r)
 		case WRITE:
 			cpu.write(&r)
+		case SYSTEM:
+			cpu.system(&r)
+		case APPEND:
+			cpu.append(&r)
+		case PUSHREG:
+			cpu.pushreg(&r)
+		case MKDIR:
+			cpu.mkdir(&r)
 		}
 	}
 }

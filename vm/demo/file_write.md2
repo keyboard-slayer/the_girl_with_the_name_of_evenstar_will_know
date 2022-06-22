@@ -1,5 +1,6 @@
 PUSH "1"
 INIT
-OPEN "hi.txt" "w" r0
+PUSH "hi.txt"
+OPEN "w" r0
 PUSH "Hello, World !" 
 WRITE r0
