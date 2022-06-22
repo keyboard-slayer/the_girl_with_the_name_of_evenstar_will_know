@@ -5,8 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -94,11 +92,6 @@ func (cpu *Cpu) open(r *Reader) {
 		}
 
 		mode += string(b ^ XOR)
-	}
-
-	if strings.HasPrefix(filename, "~") {
-		usr, _ := user.Current()
-		filename = filepath.Join(usr.HomeDir, filename[2:])
 	}
 
 	if mode == "r" {

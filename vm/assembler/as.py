@@ -16,7 +16,7 @@ _OPCODES = {
     "SYSTEM": (0x22, 0),
     "PUSHREG": (0x37, 1),
     "APPEND": (0x59, 1),
-    "MKDIR": (0x90, 0)
+    "MKDIR": (0x90, 0),
 }
 
 
@@ -67,10 +67,11 @@ def macro(line):
 
     return ret
 
+
 def assemble(s):
     code = []
     for line in s.split("\n"):
-        if not line or line[0] == ';':
+        if not line or line[0] == ";":
             continue
         if line[0] == "#":
             inst = macro(line)
